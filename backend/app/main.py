@@ -14,6 +14,10 @@ app.add_middleware(
 
 data_service = DataService()
 
+@app.get("/")
+def root():
+    return {"message": "Bitcoin Sentiment API is Running", "docs": "/docs"}
+
 @app.get("/api/health")
 def health():
     return {"status": "healthy"}

@@ -7,7 +7,7 @@ import {
 import { TrendingUp, Activity, BarChart3, Info, Wallet } from 'lucide-react'
 import { motion } from 'framer-motion'
 
-const API_BASE = "http://localhost:8000/api"
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000/api"
 
 function App() {
   const [performance, setPerformance] = useState([])

@@ -6,7 +6,6 @@ app = FastAPI(title="Bitcoin Sentiment Analysis API")
 
 # Enable CORS for React frontend
 origins = [
-    "*",
     "http://localhost:5173",
     "https://primetrade-1-412n.onrender.com",
 ]

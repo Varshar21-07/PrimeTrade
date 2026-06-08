@@ -96,92 +96,119 @@ class DataService:
             return False
 
     def get_performance_by_sentiment(self, account=None):
-        if self.merged_df is None:
-            self.load_data()
-        
-        df = self.merged_df
-        if account and account != 'All':
-            df = df[df['account'].astype(str).str.contains(account, case=False, na=False)]
-
-        # Safely determine columns for aggregation
-        agg_cols = {}
-        if 'closedPnL' in df.columns:
-            agg_cols['closedPnL'] = ['mean', 'sum', 'count']
-        
-        acc_col = next((c for c in df.columns if c.lower() == 'account'), None)
-        if acc_col:
-            agg_cols[acc_col] = 'nunique'
-        
-        if not agg_cols:
-            return []
-
-        stats = df.groupby('Classification').agg(agg_cols).reset_index()
-        new_cols = ['sentiment']
-        if 'closedPnL' in agg_cols:
-            new_cols += ['avg_pnl', 'total_pnl', 'trade_count']
-        if acc_col:
-            new_cols += ['unique_traders']
+        try:
+            if self.merged_df is None:
+                self.load_data()
             
-        stats.columns = new_cols
-        return stats.to_dict(orient='records')
+            df = self.merged_df
+            if df is None or df.empty:
+                return []
+
+            if account and account != 'All':
+                df = df[df['account'].astype(str).str.contains(str(account), case=False, na=False)]
+
+            # Safely determine columns for aggregation
+            agg_cols = {}
+            if 'closedPnL' in df.columns:
+                df['closedPnL'] = pd.to_numeric(df['closedPnL'], errors='coerce').fillna(0)
+                agg_cols['closedPnL'] = ['mean', 'sum', 'count']
+            
+            acc_col = next((c for c in df.columns if c.lower() == 'account'), None)
+            if acc_col:
+                agg_cols[acc_col] = 'nunique'
+            
+            if not agg_cols:
+                return []
+
+            stats = df.groupby('Classification').agg(agg_cols).reset_index()
+            new_cols = ['sentiment']
+            if 'closedPnL' in agg_cols:
+                new_cols += ['avg_pnl', 'total_pnl', 'trade_count']
+            if acc_col:
+                new_cols += ['unique_traders']
+                
+            stats.columns = new_cols
+            return stats.to_dict(orient='records')
+        except Exception as e:
+            print(f"Error in get_performance_by_sentiment: {str(e)}")
+            return []
 
     def get_time_series_data(self, account=None):
-        if self.merged_df is None:
-            self.load_data()
+        try:
+            if self.merged_df is None:
+                self.load_data()
+                
+            df = self.merged_df
+            if df is None or df.empty:
+                return []
+
+            if account and account != 'All':
+                df = df[df['account'].astype(str).str.contains(str(account), case=False, na=False)]
+
+            # Force numeric conversion of PnL to prevent math errors
+            if 'closedPnL' in df.columns:
+                df['closedPnL'] = pd.to_numeric(df['closedPnL'], errors='coerce').fillna(0)
+
+            # Dynamically build aggregation
+            agg_map = {}
+            if 'closedPnL' in df.columns:
+                agg_map['closedPnL'] = 'sum'
             
-        df = self.merged_df
-        if df is None or df.empty:
+            val_col = next((c for c in df.columns if c.lower() in ['value', 'score', 'sentiment_value']), None)
+            if val_col:
+                df[val_col] = pd.to_numeric(df[val_col], errors='coerce').fillna(0)
+                agg_map[val_col] = 'first'
+
+            if not agg_map:
+                return []
+
+            # Simplify grouping to prevent memory/sorting errors on Date objects
+            df = df.copy()
+            df['Date'] = df['Date'].astype(str)
+            daily = df.groupby('Date').agg(agg_map).reset_index()
+            
+            if val_col and val_col != 'Value':
+                daily = daily.rename(columns={val_col: 'Value'})
+            
+            return daily.to_dict(orient='records')
+        except Exception as e:
+            print(f"Error in get_time_series_data: {str(e)}")
             return []
 
-        if account and account != 'All':
-            df = df[df['account'].astype(str).str.contains(account, case=False, na=False)]
-
-        # Dynamically build aggregation
-        agg_map = {}
-        if 'closedPnL' in df.columns:
-            agg_map['closedPnL'] = 'sum'
-        
-        # Check for sentiment value column (might be 'Value' or something else)
-        val_col = next((c for c in df.columns if c.lower() in ['value', 'score', 'sentiment_value']), None)
-        if val_col:
-            agg_map[val_col] = 'first'
-
-        if not agg_map:
-             return []
-
-        daily = df.groupby('Date').agg(agg_map).reset_index()
-        
-        # Rename for frontend consistency
-        if val_col and val_col != 'Value':
-            daily = daily.rename(columns={val_col: 'Value'})
-        
-        daily['Date'] = daily['Date'].astype(str)
-        return daily.to_dict(orient='records')
-
     def get_risk_metrics(self, account=None):
-        if self.merged_df is None:
-            self.load_data()
-        
-        df = self.merged_df
-        if account and account != 'All':
-            df = df[df['account'].astype(str).str.contains(account, case=False, na=False)]
+        try:
+            if self.merged_df is None:
+                self.load_data()
+            
+            df = self.merged_df
+            if df is None or df.empty:
+                return {"drawdown": 0, "sharpe": 0}
 
-        if df.empty or 'closedPnL' not in df.columns:
+            if account and account != 'All':
+                df = df[df['account'].astype(str).str.contains(str(account), case=False, na=False)]
+
+            if 'closedPnL' not in df.columns:
+                return {"drawdown": 0, "sharpe": 0}
+
+            # Force numeric
+            pnl_series = pd.to_numeric(df['closedPnL'], errors='coerce').fillna(0)
+
+            # Drawdown calculation
+            cumulative_pnl = pnl_series.cumsum()
+            running_max = cumulative_pnl.cummax()
+            drawdown = (cumulative_pnl - running_max).min()
+            
+            # Sharpe Ratio (Simplified: Mean / Std)
+            returns = pnl_series
+            sharpe = (returns.mean() / returns.std() * np.sqrt(252)) if returns.std() != 0 else 0
+
+            return {
+                "drawdown": round(float(drawdown), 2),
+                "sharpe": round(float(sharpe), 2)
+            }
+        except Exception as e:
+            print(f"Error in get_risk_metrics: {str(e)}")
             return {"drawdown": 0, "sharpe": 0}
-
-        # Drawdown calculation
-        cumulative_pnl = df['closedPnL'].cumsum()
-        running_max = cumulative_pnl.cummax()
-        drawdown = (cumulative_pnl - running_max).min()
-        
-        # Sharpe Ratio (Simplified: Mean / Std)
-        returns = df['closedPnL']
-        sharpe = (returns.mean() / returns.std() * np.sqrt(252)) if returns.std() != 0 else 0
-
-        return {
-            "drawdown": round(float(drawdown), 2),
-            "sharpe": round(float(sharpe), 2)
-        }
 
     def get_all_accounts(self):
         if self.merged_df is None:

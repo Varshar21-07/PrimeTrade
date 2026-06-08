@@ -130,13 +130,30 @@ class DataService:
             self.load_data()
             
         df = self.merged_df
+        if df is None or df.empty:
+            return []
+
         if account and account != 'All':
             df = df[df['account'].astype(str).str.contains(account, case=False, na=False)]
 
-        daily = df.groupby('Date').agg({
-            'closedPnL': 'sum',
-            'Value': 'first'
-        }).reset_index()
+        # Dynamically build aggregation
+        agg_map = {}
+        if 'closedPnL' in df.columns:
+            agg_map['closedPnL'] = 'sum'
+        
+        # Check for sentiment value column (might be 'Value' or something else)
+        val_col = next((c for c in df.columns if c.lower() in ['value', 'score', 'sentiment_value']), None)
+        if val_col:
+            agg_map[val_col] = 'first'
+
+        if not agg_map:
+             return []
+
+        daily = df.groupby('Date').agg(agg_map).reset_index()
+        
+        # Rename for frontend consistency
+        if val_col and val_col != 'Value':
+            daily = daily.rename(columns={val_col: 'Value'})
         
         daily['Date'] = daily['Date'].astype(str)
         return daily.to_dict(orient='records')

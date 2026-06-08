@@ -5,9 +5,16 @@ from .data_service import DataService
 app = FastAPI(title="Bitcoin Sentiment Analysis API")
 
 # Enable CORS for React frontend
+origins = [
+    "*",
+    "http://localhost:5173",
+    "https://primetrade-1-412n.onrender.com",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )

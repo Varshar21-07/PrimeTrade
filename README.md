@@ -2,6 +2,10 @@
 
 This is a professional-grade, full-stack trading analytics dashboard that correlates **Bitcoin Fear & Greed Index** with high-execution trader data from **Hyperliquid**.
 
+## 🌐 Live Demo
+- **Frontend**: [https://primetrade-1-412n.onrender.com/](https://primetrade-1-412n.onrender.com/)
+- **Backend API**: [https://primetrade-el6m.onrender.com/api/health](https://primetrade-el6m.onrender.com/api/health)
+
 ## Key Features
 - **Advanced Risk Analytics**: Real-time calculation of **Max Drawdown** and **Sharpe Ratio** based on execution data.
 - **Sentiment Alpha Correlation**: Visualizes the performance of professional traders across different macro sentiment cycles.
